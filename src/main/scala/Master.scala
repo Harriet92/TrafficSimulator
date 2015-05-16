@@ -1,4 +1,4 @@
-import akka.actor.Actor
+import akka.actor.{ActorRef, Actor}
 
 class Master extends Actor {
   override def receive: Receive = {
@@ -11,14 +11,16 @@ class Master extends Actor {
   }
 }
 
+
 object Master {
 
   trait FieldType
 
-  object Road extends FieldType
-  object Obstacle extends FieldType
+  case object Road extends FieldType
+  case object Obstacle extends FieldType
+  case object Initialize
 
-  case class FieldInfo(t: FieldType, car: Car, crossing: Crossing)
+  case class FieldInfo(t: FieldType, car: ActorRef, crossing: ActorRef)
 
   case class FieldInfoMessage(info: FieldInfo, x: Int, y: Int)
 
