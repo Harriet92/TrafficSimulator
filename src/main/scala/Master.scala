@@ -11,12 +11,14 @@ class Master extends Actor {
   }
 }
 
+
 object Master {
 
   trait FieldType
 
-  object Road extends FieldType
-  object Obstacle extends FieldType
+  case object Road extends FieldType
+  case object Obstacle extends FieldType
+  case object Initialize
 
   case class FieldInfo(t: FieldType, car: Car, crossing: Crossing)
 
