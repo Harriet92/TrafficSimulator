@@ -1,4 +1,4 @@
-import akka.actor.{ActorRef, ActorLogging, Actor}
+import akka.actor.{Props, ActorRef, ActorLogging, Actor}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
@@ -15,12 +15,12 @@ class Crossing(opt: Crossing.Options) extends Actor with ActorLogging {
 
   override def receive: Receive = {
 
-    case Car.LightQuery(x, y) =>
+    case Car.LightQuery(direction) =>
       log.info("Crossing: Received LightQuery")
-      val direction = if(x equals 0) Crossing.Vertical else Crossing.Horizontal
-      val canGo = stateProvider.isGreen(direction)
+      val dir = if(direction == TopDirection || direction == BottomDirection) Crossing.Vertical else Crossing.Horizontal
+      val canGo = stateProvider.isGreen(dir)
       if(canGo) sender ! Crossing.GreenColorMessage()
-      else direction match{
+      else dir match{
         case Crossing.Vertical => verticalWaitingCars :+ sender
         case Crossing.Horizontal => horizontalWaitingCars :+ sender
       }
@@ -47,6 +47,8 @@ class Crossing(opt: Crossing.Options) extends Actor with ActorLogging {
 }
 
 object Crossing {
+
+  def props(opt: Options): Props = Props(new Crossing(opt))
 
   sealed abstract class LightState
   object RedLight extends LightState

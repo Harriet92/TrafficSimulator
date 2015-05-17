@@ -1,4 +1,6 @@
 import akka.actor.{ActorRef, ActorLogging, Actor}
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 class Car(var currentX: Int,
           var currentY: Int,
@@ -6,26 +8,11 @@ class Car(var currentX: Int,
           targetY: Int,
           master: ActorRef) extends Actor with ActorLogging {
 
-  var dx: Int = 0
-  var dy: Int = 0
+
   var waitingCars: List[ActorRef] = List()
   var currentFieldIsCrossing: Boolean = false
-
-  def enterField(newX: Int, newY: Int) = {
-    master ! Car.FieldLeaveMessage(currentX, currentY)
-    master ! Car.FieldEnterMessage(newX, newY)
-    currentX = newX
-    currentY = newY
-    waitingCars.head ! Car.FieldFree(waitingCars.tail)
-    waitingCars = List()
-  }
-
-  def findPath() = {
-    if(currentX == targetX && currentY == targetY)
-      context.system.stop(self)
-    // TODO
-    master ! Car.FieldQueryMessage(currentX, currentY, dx, dy)
-  }
+  var currentDirection: RoadDirection = LeftDirection
+  val velocity = 1 seconds
 
   override def receive: Receive = {
 
@@ -35,34 +22,75 @@ class Car(var currentX: Int,
       else if(x != currentX || y != currentY)
         sender ! Car.FieldFree(null)
 
-    case Master.FieldInfoMessage(Master.FieldInfo(t, car, crossing), x, y) => t match {
-      case Master.Road =>
-        // info o skrzyzowaniu do ktorego wlasnie dojezdzamy
+    case Master.FieldInfoMessage(direction, car, crossing) =>
+        // we just arrived in front of a crossroad
         if(crossing != null && !currentFieldIsCrossing) {
 
           currentFieldIsCrossing = true
-          crossing ! Car.LightQuery(x, y)
-
-        //jestesmy na skrzyzowaniu - normalny ruch
-        else {
-          if(crossing == null && currentFieldIsCrossing) currentFieldIsCrossing = false
-
-          if(car != null) car ! Car.WaitingForField(x, y)
-          else enterField(x, y)
+          crossing ! Car.LightQuery(direction)
         }
-      }
-      case Master.Obstacle =>
-    }
-    case Crossing.GreenColorMessage() =>  master ! Car.FieldQueryMessage(currentX, currentY, dx, dy)
+        // we are on a crossroad and behave like on a road
+        else {
+
+          if (crossing == null && currentFieldIsCrossing) currentFieldIsCrossing = false
+          val (newX, newY) = direction.applyMovement(currentX, currentY)
+          if (car != null) car ! Car.WaitingForField(newX, newY)
+          else startMovement(newX, newY)
+        }
+
+    case Crossing.GreenColorMessage() =>  master ! Car.FieldQueryMessage(currentX, currentY, calculateDirections())
+    case Car.MoveFinished => continueMovement()
+  }
+
+  def startMovement(newX: Int, newY: Int) = {
+    master ! Car.FieldEnterMessage(newX, newY)
+    waitingCars.head ! Car.FieldFree(waitingCars.tail)
+    waitingCars = List()
+    currentX = newX
+    currentY = newY
+    setScheduler()
+  }
+
+  def continueMovement() = {
+    master ! Car.FieldQueryMessage(currentX, currentY, calculateDirections())
+  }
+
+  def calculateDirections(): List[RoadDirection] = {
+
+    val sigX = if(targetX - currentX >= 0) 1 else 0
+    val sigY = if(targetY - currentY >= 0) 1 else 0
+    val deltaXbiggerThanDeltay = math.abs(currentX - targetX) > math.abs(currentY - targetY)
+
+    val priorityList = Car.directionPriorities((sigX, sigY, deltaXbiggerThanDeltay))
+    priorityList.filter((rd) => rd != currentDirection)
+  }
+
+  def setScheduler() {
+
+    context.system.scheduler.scheduleOnce(
+      delay = velocity,
+      receiver = self,
+      message = Car.MoveFinished)
   }
 }
 
 object Car {
 
-  case class FieldQueryMessage(x: Int, y: Int, dx: Int, dy: Int)
+  case class FieldQueryMessage(x: Int, y: Int, directions: List[RoadDirection])
   case class FieldEnterMessage(x: Int, y: Int)
-  case class FieldLeaveMessage(x: Int, y: Int)
   case class WaitingForField(x: Int, y: Int)
   case class FieldFree(queue: List[ActorRef])
-  case class LightQuery(x: Int, y: Int)
+  case class LightQuery(direction: RoadDirection)
+  case class MoveFinished()
+
+  val directionPriorities = Map[(Int, Int, Boolean), List[RoadDirection]](
+    (1, 1, true) -> List(RightDirection, TopDirection, BottomDirection, LeftDirection),
+    (1, 1, false) -> List(TopDirection, RightDirection, LeftDirection, BottomDirection),
+    (1, -1, true) -> List(RightDirection, BottomDirection, TopDirection, LeftDirection),
+    (1, -1, false) -> List(BottomDirection, RightDirection, LeftDirection, TopDirection),
+    (-1, 1, true) -> List(LeftDirection, TopDirection, BottomDirection, RightDirection),
+    (-1, 1, false) -> List(TopDirection, LeftDirection, RightDirection, BottomDirection),
+    (-1, -1, true) -> List(LeftDirection, BottomDirection, TopDirection, RightDirection),
+    (-1, -1, false) -> List(BottomDirection, LeftDirection, RightDirection, TopDirection)
+  )
 }

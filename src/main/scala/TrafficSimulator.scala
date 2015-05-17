@@ -6,9 +6,9 @@ object TrafficSimulator extends App {
   val master = system.actorOf(Props(new Master), "master")
 
   val firstCar = system.actorOf(Props(new Car(0, 0, 0, 0, master)), "alice")
-  val crossing = system.actorOf(Props(new Crossing(new Crossing.Options())), "crossing")
+  val crossing = system.actorOf(Crossing.props(new Crossing.Options()), "crossing")
 
-  firstCar.tell(Car.FieldQueryMessage(1, 1, 1, 1), master)
+  //firstCar.tell(Car.FieldQueryMessage(1, 1, LeftDirection), master)
 
   system.awaitTermination()
 }
