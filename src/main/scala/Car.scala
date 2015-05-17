@@ -1,4 +1,6 @@
 import akka.actor.{ActorRef, ActorLogging, Actor}
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 class Car(var currentX: Int,
           var currentY: Int,
@@ -6,86 +8,89 @@ class Car(var currentX: Int,
           targetY: Int,
           master: ActorRef) extends Actor with ActorLogging {
 
-  var dx: Int = 0
-  var dy: Int = 0
+
   var waitingCars: List[ActorRef] = List()
   var currentFieldIsCrossing: Boolean = false
-  var nextFieldIsCrossing: Boolean = false
-
-  def enterField(newX: Int, newY: Int) = {
-    master ! Car.FieldLeaveMessage(currentX, currentY)
-    master ! Car.FieldEnterMessage(newX, newY)
-    currentX = newX
-    currentY = newY
-    waitingCars.head ! Car.FieldFree(waitingCars.tail)
-    waitingCars = List()
-  }
-
-  def shutdown() = {
-    // TODO
-  }
-
-  def findPath() = {
-    if(currentX == targetX && currentY == targetY)
-      shutdown()
-    // TODO
-    master ! Car.FieldQueryMessage(currentX, currentY, dx, dy)
-  }
+  var currentDirection: RoadDirection = LeftDirection
+  val velocity = 1 seconds
 
   override def receive: Receive = {
 
-    case Car.WaitingForField(x, y) => {
-      if(x == currentX && y == currentY && !waitingCars.contains(sender)) waitingCars :+ sender
-      else println("Incorrect position!")
-    }
+    case Car.WaitingForField(x, y) =>
+      if(x == currentX && y == currentY && !waitingCars.contains(sender()))
+        waitingCars :+ sender
+      else if(x != currentX || y != currentY)
+        sender ! Car.FieldFree(null)
 
-    case Master.FieldInfoMessage(Master.FieldInfo(t, car, crossing), x, y) => t match {
-      case Master.Road => {
-        // przed skrzyzowaniem ...
-        if(crossing != null) {
-          // kontunuacja skrzyzowania
-          if(currentFieldIsCrossing) {
-            if(car != null) car ! Car.WaitingForField(x, y)
-            else enterField(x, y)
-          }
-          // przed skrzyzowaniem, ale samochod jeszcze o tym nie wie
-          else if(!nextFieldIsCrossing) {
-            crossing ! Car.LightQuery(x, y)
-            nextFieldIsCrossing = true
-          }
-          // nie ma miejsca
-          else if(car != null) car ! Car.WaitingForField(x, y)
-          // wjazd na skrzyzowanie
-          else {
-            enterField(x, y)
-            currentFieldIsCrossing = true
-            nextFieldIsCrossing = false
-          }
-        }
-        // brak skrzyzowania
-        else if(car == null) {
-          enterField(x, y)
-          currentFieldIsCrossing = false
-        }
-      }
-      case Master.Obstacle => {}
-    }
-    case Crossing.LightColorMessage(state) => state match {
-      case Crossing.GreenLight => master ! Car.FieldQueryMessage(currentX, currentY, dx, dy)
-      case Crossing.OrangeLight => {}
-      case Crossing.RedLight => {}
-    }
-    case _ => println("Incorrect traffic color!")
+    case Master.FieldInfoMessage(direction, car, crossing) =>
+        // we just arrived in front of a crossroad
+        if(crossing != null && !currentFieldIsCrossing) {
 
+          currentFieldIsCrossing = true
+          crossing ! Car.LightQuery(direction)
+        }
+        // we are on a crossroad and behave like on a road
+        else {
+
+          if (crossing == null && currentFieldIsCrossing) currentFieldIsCrossing = false
+          val (newX, newY) = direction.applyMovement(currentX, currentY)
+          if (car != null) car ! Car.WaitingForField(newX, newY)
+          else startMovement(newX, newY)
+        }
+
+    case Crossing.GreenColorMessage() =>  master ! Car.FieldQueryMessage(currentX, currentY, calculateDirections())
+    case Car.MoveFinished => continueMovement()
+  }
+
+  def startMovement(newX: Int, newY: Int) = {
+    master ! Car.FieldEnterMessage(newX, newY)
+    waitingCars.head ! Car.FieldFree(waitingCars.tail)
+    waitingCars = List()
+    currentX = newX
+    currentY = newY
+    setScheduler()
+  }
+
+  def continueMovement() = {
+    master ! Car.FieldQueryMessage(currentX, currentY, calculateDirections())
+  }
+
+  def calculateDirections(): List[RoadDirection] = {
+
+    val sigX = if(targetX - currentX >= 0) 1 else 0
+    val sigY = if(targetY - currentY >= 0) 1 else 0
+    val deltaXbiggerThanDeltay = math.abs(currentX - targetX) > math.abs(currentY - targetY)
+
+    val priorityList = Car.directionPriorities((sigX, sigY, deltaXbiggerThanDeltay))
+    priorityList.filter((rd) => rd != currentDirection)
+  }
+
+  def setScheduler() {
+
+    context.system.scheduler.scheduleOnce(
+      delay = velocity,
+      receiver = self,
+      message = Car.MoveFinished)
   }
 }
 
 object Car {
 
-  case class FieldQueryMessage(x: Int, y: Int, dx: Int, dy: Int)
+  case class FieldQueryMessage(x: Int, y: Int, directions: List[RoadDirection])
   case class FieldEnterMessage(x: Int, y: Int)
-  case class FieldLeaveMessage(x: Int, y: Int)
   case class WaitingForField(x: Int, y: Int)
   case class FieldFree(queue: List[ActorRef])
-  case class LightQuery(x: Int, y: Int)
+  case class LightQuery(direction: RoadDirection)
+  case class MoveFinished()
+
+  val directionPriorities = Map[(Int, Int, Boolean), List[RoadDirection]](
+    (1, 1, true) -> List(RightDirection, TopDirection, BottomDirection, LeftDirection),
+    (1, 1, false) -> List(TopDirection, RightDirection, LeftDirection, BottomDirection),
+    (1, -1, true) -> List(RightDirection, BottomDirection, TopDirection, LeftDirection),
+    (1, -1, false) -> List(BottomDirection, RightDirection, LeftDirection, TopDirection),
+    (-1, 1, true) -> List(LeftDirection, TopDirection, BottomDirection, RightDirection),
+    (-1, 1, false) -> List(TopDirection, LeftDirection, RightDirection, BottomDirection),
+    (-1, -1, true) -> List(LeftDirection, BottomDirection, TopDirection, RightDirection),
+    (-1, -1, false) -> List(BottomDirection, LeftDirection, RightDirection, TopDirection)
+  )
 }

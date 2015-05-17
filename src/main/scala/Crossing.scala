@@ -1,4 +1,4 @@
-import akka.actor.{ActorRef, ActorLogging, Actor}
+import akka.actor.{Props, ActorRef, ActorLogging, Actor}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
@@ -15,12 +15,12 @@ class Crossing(opt: Crossing.Options) extends Actor with ActorLogging {
 
   override def receive: Receive = {
 
-    case Car.LightQuery(x, y) =>
+    case Car.LightQuery(direction) =>
       log.info("Crossing: Received LightQuery")
-      val direction = if(x equals 0) Crossing.Vertical else Crossing.Horizontal
-      val canGo = stateProvider.isGreen(direction)
-      if(canGo) sender ! Crossing.LightColorMessage(Crossing.GreenLight)
-      else direction match{
+      val dir = if(direction == TopDirection || direction == BottomDirection) Crossing.Vertical else Crossing.Horizontal
+      val canGo = stateProvider.isGreen(dir)
+      if(canGo) sender ! Crossing.GreenColorMessage()
+      else dir match{
         case Crossing.Vertical => verticalWaitingCars :+ sender
         case Crossing.Horizontal => horizontalWaitingCars :+ sender
       }
@@ -30,9 +30,9 @@ class Crossing(opt: Crossing.Options) extends Actor with ActorLogging {
       stateProvider.nextState()
       setScheduler()
       if(stateProvider.isGreen(Crossing.Vertical))
-        verticalWaitingCars.foreach(car => car ! Crossing.LightColorMessage(Crossing.GreenLight))
+        verticalWaitingCars.foreach(car => car ! Crossing.GreenColorMessage())
       else if(stateProvider.isGreen(Crossing.Horizontal))
-        horizontalWaitingCars.foreach(car => car ! Crossing.LightColorMessage(Crossing.GreenLight))
+        horizontalWaitingCars.foreach(car => car ! Crossing.GreenColorMessage())
       
     case _ => log.warning("Crossing: Unexpected message!")
   }
@@ -47,6 +47,8 @@ class Crossing(opt: Crossing.Options) extends Actor with ActorLogging {
 }
 
 object Crossing {
+
+  def props(opt: Options): Props = Props(new Crossing(opt))
 
   sealed abstract class LightState
   object RedLight extends LightState
@@ -64,7 +66,7 @@ object Crossing {
       this(10 seconds, 2 seconds )
     }
   }
-  case class LightColorMessage(state: LightState)
+  case class GreenColorMessage()
   case class ChangeTrafficLights()
   case class Direction()
   object Horizontal extends Direction
