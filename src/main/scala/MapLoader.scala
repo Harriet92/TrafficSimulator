@@ -1,5 +1,7 @@
+import akka.actor.{ActorRef, ActorContext}
+
 trait MapLoader {
-  def loadMap: Map[(Int, Int), RoadDirection]
+  def loadMap(context: ActorContext): (Map[(Int, Int), RoadDirection], Map[(Int, Int), ActorRef])
 }
 
 object MapLoader {

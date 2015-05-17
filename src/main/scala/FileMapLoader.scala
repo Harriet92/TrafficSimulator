@@ -1,8 +1,10 @@
+import akka.actor.{Props, ActorContext, ActorRef}
+
 import scala.io.Source
 
 class FileMapLoader(file: String) extends MapLoader {
 
-  override def loadMap: Map[(Int, Int), RoadDirection] = {
+  override def loadMap(context: ActorContext): (Map[(Int, Int), RoadDirection], Map[(Int, Int), ActorRef]) = {
     val tuples = for {
       (line, row) <- Source.fromFile(file).getLines().toList.view.zipWithIndex
       (value, column) <- line.view.zipWithIndex
@@ -21,13 +23,14 @@ class FileMapLoader(file: String) extends MapLoader {
       top = map.getOrElse((row - 1, column), false)
       bottom = map.getOrElse((row + 1, column), false)
 
-      (finalTile, index) <- toDirection(left, right, top, bottom).view.zipWithIndex
+      (finalTile, index) <- toDirection(left, right, top, bottom, context).view.zipWithIndex
+
     } yield (row * 2 + index / 2, column * 2 + index % 2) -> finalTile
 
-    finalDirections.toMap
+    (finalDirections.map(tuple => tuple._1 -> tuple._2._1).toMap, finalDirections.map(tuple => tuple._1 -> tuple._2._2).filter(_._2 != None).map(tuple => tuple._1 -> tuple._2.get).toMap)
   }
 
-  def toDirection(left: Boolean, right: Boolean, top: Boolean, bottom: Boolean): List[RoadDirection] = {
+  def toDirection(left: Boolean, right: Boolean, top: Boolean, bottom: Boolean, context: ActorContext): List[(RoadDirection, Option[ActorRef])] = {
     var leftTop = new RoadDirection(false, false, false, false)
     var leftBottom = new RoadDirection(false, false, false, false)
     var rightTop = new RoadDirection(false, false, false, false)
@@ -46,6 +49,13 @@ class FileMapLoader(file: String) extends MapLoader {
       leftTop += BottomDirection; leftBottom += BottomDirection
     }
 
-    List(leftTop, rightTop, leftBottom, rightBottom)
+    var directions = 0
+    if (left) directions += 1
+    if (right) directions += 1
+    if (top) directions += 1
+    if (bottom) directions += 1
+
+    val crossing = if(directions > 2) Some(context.actorOf(Props(new Crossing(new Crossing.Options())))) else None
+    List((leftTop, crossing), (rightTop, crossing), (leftBottom, crossing), (rightBottom, crossing))
   }
 }

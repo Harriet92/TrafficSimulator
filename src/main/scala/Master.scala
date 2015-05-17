@@ -2,7 +2,8 @@ import akka.actor.{ActorRef, Props, ActorLogging, Actor}
 
 class Master() extends Actor with ActorLogging {
 
-  val map = MapLoader.fileLoader("map.txt").loadMap
+  val (map, crossings) = MapLoader.fileLoader("map.txt").loadMap(context)
+  println(crossings)
 
   override def receive: Receive = {
 

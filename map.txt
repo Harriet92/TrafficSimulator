@@ -1,6 +1,6 @@
-ooxxxxxxxx
-xxxxxxxxxx
-xxxxxxxxxx
+ooxoxxxxxx
+xoooxxxxxx
+xxxoxxxxxx
 xxxxxxxxxx
 xxxxxxxxxx
 xxxxxxxxxx
