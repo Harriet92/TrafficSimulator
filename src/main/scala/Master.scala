@@ -1,6 +1,9 @@
-import akka.actor.{ActorRef, Actor}
+import akka.actor.{ActorRef, Props, ActorLogging, Actor}
 
-class Master extends Actor {
+class Master() extends Actor with ActorLogging {
+
+  val map = MapLoader.fileLoader("map.txt").loadMap
+
   override def receive: Receive = {
 
     case Car.FieldEnterMessage(x, y) => println("Dupa")
@@ -9,16 +12,17 @@ class Master extends Actor {
     case _ => println("Dupa")
 
   }
+
 }
 
-
 object Master {
+
+  val props = Props[Master]
 
   trait FieldType
 
   case object Road extends FieldType
   case object Obstacle extends FieldType
-  case object Initialize
 
   case class FieldInfo(t: FieldType, car: ActorRef, crossing: ActorRef)
 
