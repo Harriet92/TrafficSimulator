@@ -5,10 +5,5 @@ object TrafficSimulator extends App {
 
   val master = system.actorOf(Props(new Master), "master")
 
-  val firstCar = system.actorOf(Props(new Car), "alice")
-  val crossing = system.actorOf(Props(new Crossing), "crossing")
-
-  firstCar.tell(Car.FieldQueryMessage(1, 1, 1, 1), master)
-
   system.awaitTermination()
 }
