@@ -19,7 +19,7 @@ class Crossing(opt: Crossing.Options) extends Actor with ActorLogging {
       log.info("Crossing: Received LightQuery")
       val direction = if(x equals 0) Crossing.Vertical else Crossing.Horizontal
       val canGo = stateProvider.isGreen(direction)
-      if(canGo) sender ! Crossing.LightColorMessage(Crossing.GreenLight)
+      if(canGo) sender ! Crossing.GreenColorMessage()
       else direction match{
         case Crossing.Vertical => verticalWaitingCars :+ sender
         case Crossing.Horizontal => horizontalWaitingCars :+ sender
@@ -30,9 +30,9 @@ class Crossing(opt: Crossing.Options) extends Actor with ActorLogging {
       stateProvider.nextState()
       setScheduler()
       if(stateProvider.isGreen(Crossing.Vertical))
-        verticalWaitingCars.foreach(car => car ! Crossing.LightColorMessage(Crossing.GreenLight))
+        verticalWaitingCars.foreach(car => car ! Crossing.GreenColorMessage())
       else if(stateProvider.isGreen(Crossing.Horizontal))
-        horizontalWaitingCars.foreach(car => car ! Crossing.LightColorMessage(Crossing.GreenLight))
+        horizontalWaitingCars.foreach(car => car ! Crossing.GreenColorMessage())
       
     case _ => log.warning("Crossing: Unexpected message!")
   }
@@ -64,7 +64,7 @@ object Crossing {
       this(10 seconds, 2 seconds )
     }
   }
-  case class LightColorMessage(state: LightState)
+  case class GreenColorMessage()
   case class ChangeTrafficLights()
   case class Direction()
   object Horizontal extends Direction
