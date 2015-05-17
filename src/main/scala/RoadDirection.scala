@@ -4,6 +4,12 @@ case class RoadDirection(left: Boolean, right: Boolean, top: Boolean, bottom: Bo
     new RoadDirection(left || dir.left, right || dir.right, top || dir.top, bottom || dir.bottom)
   }
 
+  def contains(dir: RoadDirection): Boolean =
+    (this.top || !dir.top) && (this.left || !dir.left) && (this.right || !dir.right) && (this.bottom || !dir.bottom)
+
+  def reverse(): RoadDirection =
+    new RoadDirection(right, left, bottom, top)
+
   def applyMovement(x :Int, y: Int): (Int, Int) = {
     var newX = x
     var newY = y
@@ -22,6 +28,10 @@ case class RoadDirection(left: Boolean, right: Boolean, top: Boolean, bottom: Bo
     }
 
     (newX, newY)
+  }
+
+  override def toString: String = {
+    "(" + (if(left) "Left" else "") + (if(right) " Right" else "") + (if(top) " Top" else "") + (if(bottom) " Bottom" else "") + ")"
   }
 }
 

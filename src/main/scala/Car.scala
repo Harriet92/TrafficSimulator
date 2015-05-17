@@ -11,7 +11,7 @@ class Car(var currentX: Int,
 
   var waitingCars: List[ActorRef] = List()
   var currentFieldIsCrossing: Boolean = false
-  var currentDirection: RoadDirection = LeftDirection
+  var currentDirection: RoadDirection = RoadDirection(false, false, false, false)
   val velocity = 1 seconds
 
   override def receive: Receive = {
@@ -23,7 +23,9 @@ class Car(var currentX: Int,
         sender ! Car.FieldFree(null)
 
     case Master.FieldInfoMessage(direction, car, crossing) =>
+        log.info("Received FieldInfoMessage")
         // we just arrived in front of a crossroad
+        currentDirection = direction
         if(crossing != null && !currentFieldIsCrossing) {
 
           currentFieldIsCrossing = true
@@ -31,7 +33,6 @@ class Car(var currentX: Int,
         }
         // we are on a crossroad and behave like on a road
         else {
-
           if (crossing == null && currentFieldIsCrossing) currentFieldIsCrossing = false
           val (newX, newY) = direction.applyMovement(currentX, currentY)
           if (car != null) car ! Car.WaitingForField(newX, newY)
@@ -40,29 +41,35 @@ class Car(var currentX: Int,
 
     case Crossing.GreenColorMessage() =>  master ! Car.FieldQueryMessage(currentX, currentY, calculateDirections())
     case Car.MoveFinished => continueMovement()
+    case _ => log.info("Empty car")
   }
 
   def startMovement(newX: Int, newY: Int) = {
+    log.info(s"Moving to $newX, $newY")
     master ! Car.FieldEnterMessage(newX, newY)
-    waitingCars.head ! Car.FieldFree(waitingCars.tail)
-    waitingCars = List()
+    if (waitingCars.nonEmpty) {
+      waitingCars.head ! Car.FieldFree(waitingCars.tail)
+      waitingCars = List()
+    }
+
     currentX = newX
     currentY = newY
     setScheduler()
   }
 
   def continueMovement() = {
+    log.info(s"Arrived to $currentX, $currentY")
     master ! Car.FieldQueryMessage(currentX, currentY, calculateDirections())
   }
 
   def calculateDirections(): List[RoadDirection] = {
 
-    val sigX = if(targetX - currentX >= 0) 1 else 0
-    val sigY = if(targetY - currentY >= 0) 1 else 0
+    val sigX = if(targetX - currentX >= 0) 1 else -1
+    val sigY = if(targetY - currentY >= 0) 1 else -1
     val deltaXbiggerThanDeltay = math.abs(currentX - targetX) > math.abs(currentY - targetY)
 
     val priorityList = Car.directionPriorities((sigX, sigY, deltaXbiggerThanDeltay))
-    priorityList.filter((rd) => rd != currentDirection)
+    priorityList.filter((rd) => rd != currentDirection.reverse())
   }
 
   def setScheduler() {

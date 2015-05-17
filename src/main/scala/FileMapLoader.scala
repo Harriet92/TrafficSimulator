@@ -8,24 +8,25 @@ class FileMapLoader(file: String) extends MapLoader {
     val tuples = for {
       (line, row) <- Source.fromFile(file).getLines().toList.view.zipWithIndex
       (value, column) <- line.view.zipWithIndex
-    } yield (row, column) -> (value != 'x')
+    } yield (column, row) -> (value != '_')
 
     val map = tuples.toMap
+
     val ((width, heigth), _) = map.maxBy(x => x._1._1 + x._1._2)
 
     val finalDirections = for {
       column <- 0 to width
       row <- 0 to heigth
 
-      mid = map.getOrElse((row, column), false) if mid
-      left  = map.getOrElse((row, column - 1), false)
-      right = map.getOrElse((row, column + 1), false)
-      top = map.getOrElse((row - 1, column), false)
-      bottom = map.getOrElse((row + 1, column), false)
+      mid = map.getOrElse((column, row), false) if mid
+      left  = map.getOrElse((column - 1, row), false)
+      right = map.getOrElse((column + 1, row), false)
+      top = map.getOrElse((column, row - 1), false)
+      bottom = map.getOrElse((column, row + 1), false)
 
       (finalTile, index) <- toDirection(left, right, top, bottom, context).view.zipWithIndex
 
-    } yield (row * 2 + index / 2, column * 2 + index % 2) -> finalTile
+    } yield (column * 2 + index % 2, row * 2 + index / 2) -> finalTile
 
     (finalDirections.map(tuple => tuple._1 -> tuple._2._1).toMap, finalDirections.map(tuple => tuple._1 -> tuple._2._2).filter(_._2 != None).map(tuple => tuple._1 -> tuple._2.get).toMap)
   }
