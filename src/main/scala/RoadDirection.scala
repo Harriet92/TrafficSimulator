@@ -4,6 +4,10 @@ case class RoadDirection(left: Boolean, right: Boolean, top: Boolean, bottom: Bo
     new RoadDirection(left || dir.left, right || dir.right, top || dir.top, bottom || dir.bottom)
   }
 
+  def -(dir: RoadDirection): RoadDirection = {
+    new RoadDirection(left && !dir.left, right && !dir.right, top && !dir.top, bottom && !dir.bottom)
+  }
+
   def contains(dir: RoadDirection): Boolean =
     (this.top || !dir.top) && (this.left || !dir.left) && (this.right || !dir.right) && (this.bottom || !dir.bottom)
 
@@ -35,7 +39,9 @@ case class RoadDirection(left: Boolean, right: Boolean, top: Boolean, bottom: Bo
   }
 }
 
+object NoDirection extends RoadDirection(false, false, false, false)
 object LeftDirection extends RoadDirection(true, false, false, false)
 object RightDirection extends RoadDirection(false, true, false, false)
 object TopDirection extends RoadDirection(false, false, true, false)
 object BottomDirection extends RoadDirection(false, false, false, true)
+object AllDirections extends RoadDirection(true, true, true, true)
