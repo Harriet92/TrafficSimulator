@@ -1,6 +1,7 @@
 import akka.actor.{Props, ActorRef, ActorLogging, Actor}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
+import scala.language.postfixOps
 
 class Crossing(opt: Crossing.Options) extends Actor with ActorLogging {
 
@@ -9,7 +10,6 @@ class Crossing(opt: Crossing.Options) extends Actor with ActorLogging {
   val stateProvider = new Crossing.StateProvider(opt)
 
   override def preStart(): Unit = {
-
       setScheduler()
   }
 
@@ -17,28 +17,40 @@ class Crossing(opt: Crossing.Options) extends Actor with ActorLogging {
 
     case Car.LightQuery(direction) =>
       log.info("Crossing: Received LightQuery")
-      val dir = if(direction == TopDirection || direction == BottomDirection) Crossing.Vertical else Crossing.Horizontal
-      val canGo = stateProvider.isGreen(dir)
-      if(canGo) sender ! Crossing.GreenColorMessage()
-      else dir match{
-        case Crossing.Vertical => verticalWaitingCars :+ sender
-        case Crossing.Horizontal => horizontalWaitingCars :+ sender
-      }
+      handleLightQuery(direction)
 
     case Crossing.ChangeTrafficLights =>
       log.info("Crossing: Received ChangeTrafficLights")
-      stateProvider.nextState()
+      handleLightChange()
       setScheduler()
-      if(stateProvider.isGreen(Crossing.Vertical))
-        verticalWaitingCars.foreach(car => car ! Crossing.GreenColorMessage())
-      else if(stateProvider.isGreen(Crossing.Horizontal))
-        horizontalWaitingCars.foreach(car => car ! Crossing.GreenColorMessage())
       
     case _ => log.warning("Crossing: Unexpected message!")
   }
 
-  def setScheduler() {
+  private def handleLightChange(): Unit = {
+    stateProvider.nextState()
+    if (stateProvider.isGreen(Crossing.Vertical)) {
+      verticalWaitingCars.foreach(car => car ! Crossing.GreenColorMessage)
+      verticalWaitingCars = List()
+    }
+    else if (stateProvider.isGreen(Crossing.Horizontal)) {
+      horizontalWaitingCars.foreach(car => car ! Crossing.GreenColorMessage)
+      horizontalWaitingCars = List()
+    }
+  }
 
+  private def handleLightQuery(direction: RoadDirection): Unit = {
+    val dir = Crossing.roadDirectionToDirection(direction)
+    if (stateProvider.isGreen(dir))
+      sender ! Crossing.GreenColorMessage
+    else dir match {
+      case Crossing.Vertical => verticalWaitingCars = sender :: verticalWaitingCars
+      case Crossing.Horizontal => horizontalWaitingCars = sender :: horizontalWaitingCars
+    }
+  }
+
+  def setScheduler() {
+    log.debug("Setting scheduler")
     context.system.scheduler.scheduleOnce(
       delay = stateProvider.currentDuration,
       receiver = self,
@@ -50,31 +62,37 @@ object Crossing {
 
   def props(opt: Options): Props = Props(new Crossing(opt))
 
-  sealed abstract class LightState
+  trait LightState
   object RedLight extends LightState
   object GreenLight extends LightState
   object OrangeLight extends LightState
   object OrangeRedLight extends LightState
 
-  case class Options(hGreenDuration: FiniteDuration, vGreenDuration: FiniteDuration, orangeDuration: FiniteDuration){
-
-    def this(duration: FiniteDuration, orangeDuration: FiniteDuration){
-      this(duration, duration, orangeDuration)
-    }
-
-    def this(){
-      this(10 seconds, 2 seconds )
-    }
-  }
-  case class GreenColorMessage()
-  case class ChangeTrafficLights()
-  case class Direction()
+  trait Direction
   object Horizontal extends Direction
   object Vertical extends Direction
 
-  case class StateElem(hstate: LightState, vstate: LightState, duration: FiniteDuration)
+  object GreenColorMessage
+  object ChangeTrafficLights
+
+  def roadDirectionToDirection(dir: RoadDirection): Direction =
+    if (dir.contains(TopDirection) || dir.contains(BottomDirection))
+      Vertical
+    else
+      Horizontal
+
+  case class Options(hGreenDuration: FiniteDuration, vGreenDuration: FiniteDuration, orangeDuration: FiniteDuration) {
+
+    def this(duration: FiniteDuration = 10 seconds, orangeDuration: FiniteDuration = 2 seconds){
+      this(duration, duration, orangeDuration)
+    }
+
+  }
 
   class StateProvider(opt: Options){
+
+   case class StateElem(hstate: LightState, vstate: LightState, duration: FiniteDuration)
+
     val states = Array(
       new StateElem(GreenLight, RedLight, opt.hGreenDuration),
       new StateElem(OrangeLight, RedLight, opt.orangeDuration),
