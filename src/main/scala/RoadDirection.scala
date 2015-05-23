@@ -14,24 +14,23 @@ case class RoadDirection(left: Boolean, right: Boolean, top: Boolean, bottom: Bo
   def reverse(): RoadDirection =
     new RoadDirection(right, left, bottom, top)
 
-  def applyMovement(x :Int, y: Int): (Int, Int) = {
-    var newX = x
-    var newY = y
+  def applyMovement(loc: Location): Location = {
+    var newLoc = loc
 
     if(left) {
-      newX -= 1
+      newLoc = new Location(newLoc.x - 1, newLoc.y)
     }
     if(right) {
-      newX += 1
+      newLoc = new Location(newLoc.x + 1, newLoc.y)
     }
     if(top) {
-      newY -= 1
+      newLoc = new Location(newLoc.x, newLoc.y - 1)
     }
     if(bottom) {
-      newY += 1
+      newLoc = new Location(newLoc.x, newLoc.y + 1)
     }
 
-    (newX, newY)
+    newLoc
   }
 
   override def toString: String = {

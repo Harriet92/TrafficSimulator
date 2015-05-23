@@ -1,9 +1,9 @@
 import akka.actor.{ActorRef, ActorContext}
 
 class DumbMapLoader extends MapLoader {
-  override def loadMap(context: ActorContext): (Map[(Int, Int), RoadDirection], Map[(Int, Int), ActorRef]) = {
+  override def loadMap(context: ActorContext): (Map[Location, RoadDirection], Map[Location, ActorRef]) = {
     println("Loading map!")
 
-    (Map((1, 2) -> RoadDirection(left = true, right = true, top = true, bottom = true)), Map[(Int, Int), ActorRef]())
+    (Map(new Location(1, 2) -> RoadDirection(left = true, right = true, top = true, bottom = true)), Map[Location, ActorRef]())
   }
 }

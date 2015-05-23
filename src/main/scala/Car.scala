@@ -2,16 +2,13 @@ import akka.actor.{ActorRef, ActorLogging, Actor}
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class Car(var currentX: Int,
-          var currentY: Int,
-          targetX: Int,
-          targetY: Int,
-          master: ActorRef) extends Actor with ActorLogging {
+class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) extends Actor with ActorLogging {
 
   var waitingCars: List[ActorRef] = List()
   var currentFieldIsCrossing: Boolean = false
   var currentDirection: RoadDirection = NoDirection
   val velocity = 1 seconds
+
 
   override def preStart(): Unit = {
     setScheduler()
@@ -19,9 +16,9 @@ class Car(var currentX: Int,
 
   override def receive: Receive = {
 
-    case Car.WaitingForFieldMessage(x, y) =>
+    case Car.WaitingForFieldMessage(loc) =>
       log.info("Received WaitingForFieldMessage")
-      handleOtherCarWaitMessage(x, y)
+      handleOtherCarWaitMessage(loc)
 
     case Master.FieldInfoMessage(direction, car, crossing) =>
       log.info("Received FieldInfoMessage")
@@ -29,9 +26,18 @@ class Car(var currentX: Int,
 
     case Crossing.GreenColorMessage =>
       log.info("Received GreenColorMessage")
-      master ! Car.FieldQueryMessage(currentX, currentY, calculateDirections())
+      master ! Car.FieldQueryMessage(currentLoc, calculateDirections())
 
     case Car.MoveFinished => continueMovement()
+
+    case Car.FieldFree(loc, queue) =>
+      log.info("Received FieldFreeMessage!")
+      handleFieldFree(loc, queue)
+
+    case Master.NextTargetMessage(newLoc) =>
+      log.info(s"Received new target location: $newLoc")
+      changeTarget(newLoc)
+
     case _ => log.info("Not recognized message!")
   }
 
@@ -45,41 +51,55 @@ class Car(var currentX: Int,
     // we are on a crossroad and behave like on a road
     else {
       if (crossing == null && currentFieldIsCrossing) currentFieldIsCrossing = false
-      val (newX, newY) = direction.applyMovement(currentX, currentY)
-      if (car != null) car ! Car.WaitingForFieldMessage(newX, newY)
-      else startMovement(newX, newY)
+      val newLoc = direction.applyMovement(currentLoc)
+      if (car != null) car ! Car.WaitingForFieldMessage(newLoc)
+      else startMovement(newLoc)
     }
   }
 
-  private def handleOtherCarWaitMessage(x: Int, y: Int) = {
-    if (x == currentX && y == currentY && !waitingCars.contains(sender()))
-      waitingCars :+ sender
-    else if (x != currentX || y != currentY)
-      sender ! Car.FieldFree(null)
+
+  def handleFieldFree(loc:Location, refs: List[ActorRef]): Unit = {
+    startMovement(loc)
+    waitingCars = refs
   }
 
-  private def startMovement(newX: Int, newY: Int) = {
-    log.info(s"Moving to $newX, $newY")
-    master ! Car.FieldEnterMessage(newX, newY)
+  private def handleOtherCarWaitMessage(loc: Location) = {
+    if (currentLoc == loc && !waitingCars.contains(sender()))
+      waitingCars = sender :: waitingCars
+    else if (loc != currentLoc)
+      sender ! Car.FieldFree(loc, Nil)
+  }
+
+  private def changeTarget(location: Location): Unit = {
+    targetLoc = location
+    master ! Car.FieldQueryMessage(currentLoc, calculateDirections())
+  }
+
+  private def startMovement(newLoc: Location) = {
+    log.info(s"Moving to $newLoc")
+    master ! Car.FieldEnterMessage(newLoc)
     if (waitingCars.nonEmpty) {
-      waitingCars.head ! Car.FieldFree(waitingCars.tail)
+      waitingCars.head ! Car.FieldFree(currentLoc, waitingCars.tail)
       waitingCars = List()
     }
-
-    currentX = newX
-    currentY = newY
+    currentLoc = newLoc
     setScheduler()
   }
 
   private def continueMovement() = {
-    log.info(s"Arrived to $currentX, $currentY")
-    master ! Car.FieldQueryMessage(currentX, currentY, calculateDirections())
+    log.info(s"Arrived to $currentLoc")
+    if(currentLoc == targetLoc) {
+      log.info(s"Reached target location: $targetLoc")
+      master ! Car.DestinationReachedMessage()
+    }
+    else
+      master ! Car.FieldQueryMessage(currentLoc, calculateDirections())
   }
 
   private def calculateDirections(): List[RoadDirection] = {
-    val sigX = if(targetX - currentX >= 0) 1 else -1
-    val sigY = if(targetY - currentY >= 0) 1 else -1
-    val deltaXbiggerThanDeltay = math.abs(currentX - targetX) > math.abs(currentY - targetY)
+    val sigX = if(targetLoc.x - currentLoc.x >= 0) 1 else -1
+    val sigY = if(targetLoc.y - currentLoc.y >= 0) 1 else -1
+    val deltaXbiggerThanDeltay = math.abs(currentLoc.x - targetLoc.x) > math.abs(currentLoc.y -targetLoc.y)
 
     val priorityList = Car.directionPriorities((sigX, sigY, deltaXbiggerThanDeltay))
     priorityList.filter((rd) => rd != currentDirection.reverse())
@@ -96,12 +116,13 @@ class Car(var currentX: Int,
 
 object Car {
 
-  case class FieldQueryMessage(x: Int, y: Int, directions: List[RoadDirection])
-  case class FieldEnterMessage(x: Int, y: Int)
-  case class WaitingForFieldMessage(x: Int, y: Int)
-  case class FieldFree(queue: List[ActorRef])
+  case class FieldQueryMessage(loc: Location, directions: List[RoadDirection])
+  case class FieldEnterMessage(loc: Location)
+  case class WaitingForFieldMessage(loc: Location)
+  case class FieldFree(loc:Location, queue: List[ActorRef])
   case class LightQuery(direction: RoadDirection)
   case class MoveFinished()
+  case class DestinationReachedMessage()
 
   val directionPriorities = Map[(Int, Int, Boolean), List[RoadDirection]](
     (1, 1, true) -> List(RightDirection, TopDirection, BottomDirection, LeftDirection),

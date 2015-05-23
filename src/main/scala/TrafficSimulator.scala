@@ -5,7 +5,5 @@ object TrafficSimulator extends App {
 
   val master = system.actorOf(Props(new Master), "master")
 
-  val firstCar = system.actorOf(Props(new Car(4, 6, 4, 2, master)), "carrrr")
-
   system.awaitTermination()
 }

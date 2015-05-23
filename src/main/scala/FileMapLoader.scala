@@ -5,7 +5,7 @@ import scala.io.Source
 class FileMapLoader(file: String) extends MapLoader {
 
   private val toDirections = Map[RoadDirection, List[RoadDirection]](
-    NoDirection -> List(NoDirection, NoDirection, NoDirection, NoDirection),
+    NoDirection -> List(BottomDirection, LeftDirection, RightDirection, TopDirection),
 
     LeftDirection -> List(LeftDirection, LeftDirection, RightDirection, TopDirection),
     RightDirection -> List(BottomDirection, LeftDirection, RightDirection, RightDirection),
@@ -32,7 +32,7 @@ class FileMapLoader(file: String) extends MapLoader {
       RightDirection + BottomDirection, TopDirection + RightDirection)
   )
 
-  override def loadMap(context: ActorContext): (Map[(Int, Int), RoadDirection], Map[(Int, Int), ActorRef]) = {
+  override def loadMap(context: ActorContext): (Map[Location, RoadDirection], Map[Location, ActorRef]) = {
     val tuples = for {
       (line, row) <- Source.fromFile(file).getLines().toList.view.zipWithIndex
       (value, column) <- line.view.zipWithIndex
@@ -56,7 +56,7 @@ class FileMapLoader(file: String) extends MapLoader {
 
       (finalTile, index) <- toDirections(directions).view.zipWithIndex
 
-    } yield (column * 2 + index % 2, row * 2 + index / 2) -> (finalTile, crossing)
+    } yield new Location(column * 2 + index % 2, row * 2 + index / 2) -> (finalTile, crossing)
 
     val roads = finalDirections.map(tuple => tuple._1 -> tuple._2._1).toMap
     val crossings = finalDirections.filter(_._2._2 != null).map(tuple => tuple._1 -> tuple._2._2).toMap
