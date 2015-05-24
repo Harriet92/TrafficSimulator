@@ -5,11 +5,11 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.FiniteDuration
 import scala.util.Random
 
-class Master() extends Actor with ActorLogging {
+class Master(drawer: ActorRef) extends Actor with ActorLogging {
 
   private val random = new Random()
-
-  val (map, crossings) = MapLoader.fileLoader("test_map.txt").loadMap(context)
+  val (map, crossings) = MapLoader.fileLoader("map.txt").loadMap(context)
+  drawer ! Master.DrawMap(map)
   val possibleLocations = map.keys.filter(crossings.get(_) == None).toIndexedSeq
   val cars = createCars(2)
   val searchTargetDelay = new FiniteDuration(20, duration.SECONDS)
@@ -18,6 +18,7 @@ class Master() extends Actor with ActorLogging {
     case Car.FieldEnterMessage(loc) =>
       log.info(s"Received FieldEnterMessage $loc")
       handleFieldEnterMessage(loc)
+      drawer ! Master.RefreshCars(cars)
 
     case Car.FieldQueryMessage(loc, dir) =>
       log.info(s"Received FieldQueryMessage $loc, $dir")
@@ -80,5 +81,7 @@ object Master {
 
   case class FieldInfoMessage(direction: RoadDirection, car: ActorRef, crossing: ActorRef)
   case class NextTargetMessage(loc: Location)
+  case class DrawMap(var map: Map[Location, RoadDirection])
+  case class RefreshCars(var cars : mutable.Map[ActorRef, Location])
 
 }
