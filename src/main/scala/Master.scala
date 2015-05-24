@@ -35,7 +35,7 @@ class Master(drawer: ActorRef) extends Actor with ActorLogging {
     val bestDir = directions.find(map.getOrElse(loc, NoDirection).contains).getOrElse(NoDirection)
     val newLoc = bestDir.applyMovement(loc)
     val car = cars.find(_._2 == newLoc).map(_._1)
-    val crossing = crossings.getOrElse(loc, null)
+    val crossing = crossings.getOrElse(newLoc, null)
     if (bestDir != NoDirection)
       sender ! Master.FieldInfoMessage(bestDir, car.orNull, crossing)
   }
@@ -67,10 +67,11 @@ class Master(drawer: ActorRef) extends Actor with ActorLogging {
         currentList
       }
     }
-    val testCar1 = context.actorOf(Props(new Car(new Location(0, 1), new Location(6, 1), self))) -> new Location(0, 1)
-    val testCar2 = context.actorOf(Props(new Car(new Location(2, 1), new Location(4, 1), self))) -> new Location(2, 1)
-    //mutable.Map(createCar(number, List.empty): _*)
-    mutable.Map(List(testCar1, testCar2): _*)
+    //val testCar1 = context.actorOf(Props(new Car(new Location(0, 1), new Location(6, 1), self))) -> new Location(0, 1)
+    //val testCar2 = context.actorOf(Props(new Car(new Location(2, 1), new Location(4, 1), self))) -> new Location(2, 1)
+
+    //mutable.Map(List(testCar1, testCar2): _*)
+    mutable.Map(createCar(number, List.empty): _*)
   }
 
 }
