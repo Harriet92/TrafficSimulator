@@ -7,7 +7,7 @@ class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) e
   var waitingCars: List[ActorRef] = List()
   var currentFieldIsCrossing: Boolean = false
   var currentDirection: RoadDirection = NoDirection
-  val velocity = 1 seconds
+  val velocity = 500 milliseconds
 
 
   override def preStart(): Unit = {

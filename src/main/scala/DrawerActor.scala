@@ -1,7 +1,7 @@
 import java.awt.{Color, Dimension}
 import javax.swing.{JFrame, SwingUtilities}
 
-import akka.actor.{ActorLogging, Actor}
+import akka.actor.{ActorRef, ActorLogging, Actor}
 
 class DrawerActor() extends Actor with ActorLogging {
 
@@ -14,20 +14,22 @@ class DrawerActor() extends Actor with ActorLogging {
   }
 
   def receive = {
-    case Master.DrawMap(map) => drawMap(map)
+    case Master.DrawMap(map, crossings) => drawMap(map, crossings)
     case Master.RefreshCars(cars) => mapPanel.refreshCars(cars)
+    case Crossing.TrafficLightsChanged(state) => mapPanel.changeLightsColor(state, sender())
     case _ =>
   }
 
   def configureMainFrame() {
     mainFrame.setTitle("Traffic simulator")
-    mainFrame.setBackground(Color.GREEN)
+    mainFrame.setBackground(Color.LIGHT_GRAY)
     mainFrame.getContentPane.add(mapPanel)
     mainFrame.setLocationRelativeTo(null)
   }
 
-  def drawMap( map: Map[Location, RoadDirection] ) {
+  def drawMap( map: Map[Location, RoadDirection], crossings: Map[Location, ActorRef] ) {
     mapPanel = new MapPanel(map)
+    mapPanel.crossingsMapInit(crossings)
     configureMainFrame()
     SwingUtilities.invokeLater(new Runnable {
       def run {

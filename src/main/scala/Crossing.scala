@@ -1,16 +1,19 @@
+import java.awt.Color
+
 import akka.actor.{Props, ActorRef, ActorLogging, Actor}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class Crossing(opt: Crossing.Options) extends Actor with ActorLogging {
+class Crossing(opt: Crossing.Options, drawer: ActorRef) extends Actor with ActorLogging {
 
-  var horizontalWaitingCars: List[ActorRef] = List() 
+  var horizontalWaitingCars: List[ActorRef] = List()
   var verticalWaitingCars: List[ActorRef] = List()
   val stateProvider = new Crossing.StateProvider(opt)
 
   override def preStart(): Unit = {
-      setScheduler()
+    setScheduler()
+    drawer ! Crossing.TrafficLightsChanged(stateProvider.currentState())
   }
 
   override def receive: Receive = {
@@ -22,8 +25,9 @@ class Crossing(opt: Crossing.Options) extends Actor with ActorLogging {
     case Crossing.ChangeTrafficLights =>
       log.info("Crossing: Received ChangeTrafficLights")
       handleLightChange()
+      drawer ! Crossing.TrafficLightsChanged(stateProvider.currentState())
       setScheduler()
-      
+
     case _ => log.warning("Crossing: Unexpected message!")
   }
 
@@ -60,20 +64,31 @@ class Crossing(opt: Crossing.Options) extends Actor with ActorLogging {
 
 object Crossing {
 
-  def props(opt: Options): Props = Props(new Crossing(opt))
+  def props(opt: Options, drawer: ActorRef): Props = Props(new Crossing(opt, drawer))
 
   trait LightState
+
   object RedLight extends LightState
+
   object GreenLight extends LightState
+
   object OrangeLight extends LightState
+
   object OrangeRedLight extends LightState
 
+  case class CurrentState(hstate: LightState, vstate: LightState)
+
   trait Direction
+
   object Horizontal extends Direction
+
   object Vertical extends Direction
 
   object GreenColorMessage
+
   object ChangeTrafficLights
+
+  case class TrafficLightsChanged(currState: CurrentState)
 
   def roadDirectionToDirection(dir: RoadDirection): Direction =
     if (dir.contains(TopDirection) || dir.contains(BottomDirection))
@@ -83,15 +98,22 @@ object Crossing {
 
   case class Options(hGreenDuration: FiniteDuration, vGreenDuration: FiniteDuration, orangeDuration: FiniteDuration) {
 
-    def this(duration: FiniteDuration = 10 seconds, orangeDuration: FiniteDuration = 2 seconds){
+    def this(duration: FiniteDuration = 10 seconds, orangeDuration: FiniteDuration = 2 seconds) {
       this(duration, duration, orangeDuration)
     }
 
   }
 
-  class StateProvider(opt: Options){
+  val lightStateToColor = Map[LightState, Color](
+    RedLight -> Color.RED,
+    GreenLight -> Color.GREEN,
+    OrangeLight -> Color.ORANGE,
+    OrangeRedLight -> Color.ORANGE
+  )
 
-   case class StateElem(hstate: LightState, vstate: LightState, duration: FiniteDuration)
+  class StateProvider(opt: Options) {
+
+    case class StateElem(hstate: LightState, vstate: LightState, duration: FiniteDuration)
 
     val states = Array(
       new StateElem(GreenLight, RedLight, opt.hGreenDuration),
@@ -102,14 +124,17 @@ object Crossing {
       new StateElem(OrangeRedLight, RedLight, opt.orangeDuration))
 
     var counter = 0
+
     def currentDuration: FiniteDuration = {
       states(counter).duration
     }
 
-    def isGreen(direction: Direction): Boolean = direction match{
-        case Horizontal => states(counter).hstate equals GreenLight
-        case Vertical => states(counter).vstate equals GreenLight
-      }
+    def isGreen(direction: Direction): Boolean = direction match {
+      case Horizontal => states(counter).hstate equals GreenLight
+      case Vertical => states(counter).vstate equals GreenLight
+    }
+
+    def currentState(): CurrentState = CurrentState(states(counter).hstate, states(counter).vstate)
 
     def nextState() = {
       counter = (counter + 1) % states.length

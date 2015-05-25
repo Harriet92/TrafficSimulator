@@ -32,7 +32,7 @@ class FileMapLoader(file: String) extends MapLoader {
       RightDirection + BottomDirection, TopDirection + RightDirection)
   )
 
-  override def loadMap(context: ActorContext): (Map[Location, RoadDirection], Map[Location, ActorRef]) = {
+  override def loadMap(context: ActorContext, drawer: ActorRef): (Map[Location, RoadDirection], Map[Location, ActorRef]) = {
     val tuples = for {
       (line, row) <- Source.fromFile(file).getLines().toList.view.zipWithIndex
       (value, column) <- line.view.zipWithIndex
@@ -52,7 +52,7 @@ class FileMapLoader(file: String) extends MapLoader {
       bottom = map.getOrElse((column, row + 1), false)
 
       directions = new RoadDirection(left, right, top, bottom)
-      crossing = createCrossing(directions, column, row, context)
+      crossing = createCrossing(directions, column, row, context, drawer)
 
       (finalTile, index) <- toDirections(directions).view.zipWithIndex
 
@@ -63,7 +63,7 @@ class FileMapLoader(file: String) extends MapLoader {
     (roads, crossings)
   }
 
-  def createCrossing(direction: RoadDirection, x: Int, y: Int, context: ActorContext) : ActorRef = {
+  def createCrossing(direction: RoadDirection, x: Int, y: Int, context: ActorContext, drawer: ActorRef) : ActorRef = {
     var directions = 0
     if (direction.left) directions += 1
     if (direction.right) directions += 1
@@ -71,7 +71,7 @@ class FileMapLoader(file: String) extends MapLoader {
     if (direction.bottom) directions += 1
 
     if(directions > 2)
-      context.actorOf(Props(new Crossing(new Crossing.Options())), s"crossing$x,$y")
+      context.actorOf(Props(new Crossing(new Crossing.Options(), drawer)), s"crossing$x,$y")
     else
       null
   }
