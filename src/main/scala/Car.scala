@@ -1,5 +1,4 @@
 import akka.actor.{ActorRef, ActorLogging, Actor}
-import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) extends Actor with ActorLogging {
@@ -7,38 +6,38 @@ class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) e
   var waitingCars: List[ActorRef] = List()
   var currentFieldIsCrossing: Boolean = false
   var currentDirection: RoadDirection = NoDirection
-  val velocity = 500 milliseconds
-
-
-  override def preStart(): Unit = {
-    setScheduler()
-  }
+  val velocity = Consts.carVelocity
 
   override def receive: Receive = {
+    case Master.Start() => init()
 
     case Car.WaitingForFieldMessage(loc) =>
-      log.info("Received WaitingForFieldMessage")
+      //log.info("Received WaitingForFieldMessage")
       handleOtherCarWaitMessage(loc)
 
     case Master.FieldInfoMessage(direction, car, crossing) =>
-      log.info("Received FieldInfoMessage")
+      //log.info("Received FieldInfoMessage")
       handleFieldInfoMessage(direction, car, crossing)
 
     case Crossing.GreenColorMessage =>
-      log.info("Received GreenColorMessage")
+      //log.info("Received GreenColorMessage")
       master ! Car.FieldQueryMessage(currentLoc, calculateDirections())
 
     case Car.MoveFinished => continueMovement()
 
     case Car.FieldFree(loc, queue) =>
-      log.info("Received FieldFreeMessage!")
+      //log.info("Received FieldFreeMessage!")
       handleFieldFree(loc, queue)
 
     case Master.NextTargetMessage(newLoc) =>
-      log.info(s"Received new target location: $newLoc")
+      //log.info(s"Received new target location: $newLoc")
       changeTarget(newLoc)
 
     case _ => log.info("Not recognized message!")
+  }
+
+  def init(): Unit = {
+    setScheduler()
   }
 
   private def handleFieldInfoMessage(direction: RoadDirection, car: ActorRef, crossing: ActorRef): Unit = {

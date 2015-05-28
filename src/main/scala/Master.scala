@@ -8,27 +8,37 @@ import scala.util.Random
 class Master(drawer: ActorRef) extends Actor with ActorLogging {
 
   private val random = new Random()
-  val (map, crossings) = MapLoader.fileLoader("map.txt").loadMap(context, drawer)
+  val (map, crossings) = MapLoader.fileLoader(Consts.mapFilename).loadMap(context, drawer)
   drawer ! Master.DrawMap(map, crossings)
   val possibleLocations = map.keys.filter(crossings.get(_) == None).toIndexedSeq
-  val cars = createCars(10)
+  val cars = createCars(Consts.carsCount)
   val searchTargetDelay = new FiniteDuration(20, duration.SECONDS)
 
   override def receive: Receive = {
+    case Drawer.InitializationFinished() => startAllActors()
     case Car.FieldEnterMessage(loc) =>
-      log.info(s"Received FieldEnterMessage $loc")
+      //log.info(s"Received FieldEnterMessage $loc")
       handleFieldEnterMessage(loc)
       drawer ! Master.RefreshCars(cars)
 
     case Car.FieldQueryMessage(loc, dir) =>
-      log.info(s"Received FieldQueryMessage $loc, $dir")
+      //log.info(s"Received FieldQueryMessage $loc, $dir")
       handleQuery(loc, dir)
 
     case Car.DestinationReachedMessage() =>
-      log.info(s"Received DestinationReachedMessage!")
+      //log.info(s"Received DestinationReachedMessage!")
       handleDestinationReached()
 
     case _ => println("Dupa")
+  }
+
+  def startAllActors(): Unit = {
+    for ((actor,loc ) <- cars) {
+      actor ! Master.Start()
+    }
+    for ((loc,actor ) <- crossings) {
+      actor ! Master.Start()
+    }
   }
 
   def handleQuery(loc: Location, directions: List[RoadDirection]): Unit = {
@@ -57,7 +67,7 @@ class Master(drawer: ActorRef) extends Actor with ActorLogging {
 
   def createCars(number: Int): mutable.Map[ActorRef, Location] = {
     def createCar(leftToCreate: Int, currentList: List[(ActorRef, Location)]): List[(ActorRef, Location)] = {
-      if(leftToCreate > 0) {
+      if (leftToCreate > 0) {
         val startingPos = findRandomPlaceOnRoad()
         val targetPos = findRandomPlaceOnRoad()
         log.info(s"Creating car with starting location $startingPos")
@@ -81,8 +91,13 @@ object Master {
   def props = Props[Master]
 
   case class FieldInfoMessage(direction: RoadDirection, car: ActorRef, crossing: ActorRef)
+
   case class NextTargetMessage(loc: Location)
+
   case class DrawMap(var map: Map[Location, RoadDirection], var crossings: Map[Location, ActorRef])
-  case class RefreshCars(var cars : mutable.Map[ActorRef, Location])
+
+  case class RefreshCars(var cars: mutable.Map[ActorRef, Location])
+
+  case class Start()
 
 }

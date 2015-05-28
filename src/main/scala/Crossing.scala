@@ -11,19 +11,15 @@ class Crossing(opt: Crossing.Options, drawer: ActorRef) extends Actor with Actor
   var verticalWaitingCars: List[ActorRef] = List()
   val stateProvider = new Crossing.StateProvider(opt)
 
-  override def preStart(): Unit = {
-    setScheduler()
-    drawer ! Crossing.TrafficLightsChanged(stateProvider.currentState())
-  }
-
   override def receive: Receive = {
+    case Master.Start() => init()
 
     case Car.LightQuery(direction) =>
-      log.info("Crossing: Received LightQuery")
+      //log.info("Crossing: Received LightQuery")
       handleLightQuery(direction)
 
     case Crossing.ChangeTrafficLights =>
-      log.info("Crossing: Received ChangeTrafficLights")
+      //log.info("Crossing: Received ChangeTrafficLights")
       handleLightChange()
       drawer ! Crossing.TrafficLightsChanged(stateProvider.currentState())
       setScheduler()
@@ -31,6 +27,10 @@ class Crossing(opt: Crossing.Options, drawer: ActorRef) extends Actor with Actor
     case _ => log.warning("Crossing: Unexpected message!")
   }
 
+  def init(): Unit = {
+    setScheduler()
+    drawer ! Crossing.TrafficLightsChanged(stateProvider.currentState())
+  }
   private def handleLightChange(): Unit = {
     stateProvider.nextState()
     if (stateProvider.isGreen(Crossing.Vertical)) {

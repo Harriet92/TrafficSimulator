@@ -7,9 +7,9 @@ import scala.collection.mutable
 
 class MapPanel(var map : Map[Location, RoadDirection]) extends JPanel {
 
-  val panelWidth = 600
-  val panelHeight = 400
-  val tileSize = 40
+  val panelWidth = Consts.windowWidth
+  val panelHeight = Consts.windowHeight
+  val tileSize = Consts.tileSize
   var carSize = tileSize / 2
   var currentX = 0
   var currentY = 0
