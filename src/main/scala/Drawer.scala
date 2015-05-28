@@ -5,12 +5,10 @@ import akka.actor.{ActorRef, ActorLogging, Actor}
 
 class Drawer() extends Actor with ActorLogging {
 
-  val WIDTH = 600
-  val HEIGHT = 400
   var mapPanel: MapPanel = new MapPanel(null)
   val mainFrame = new JFrame {
-    setMinimumSize(new Dimension(WIDTH, HEIGHT))
-    setPreferredSize(new Dimension(WIDTH, HEIGHT))
+    setMinimumSize(new Dimension(Consts.windowWidth, Consts.windowHeight))
+    setPreferredSize(new Dimension(Consts.windowWidth, Consts.windowHeight))
   }
 
   def receive = {

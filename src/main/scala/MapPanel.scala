@@ -1,3 +1,5 @@
+import java.io.File
+import javax.imageio.ImageIO
 import javax.swing.JPanel
 import java.awt.{Color, Graphics}
 
@@ -11,6 +13,7 @@ class MapPanel(var map : Map[Location, RoadDirection]) extends JPanel {
   val panelHeight = Consts.windowHeight
   val tileSize = Consts.tileSize
   var carSize = tileSize / 2
+  val lightSize = Consts.lightSize
   var currentX = 0
   var currentY = 0
   val roadColor = Color.DARK_GRAY
@@ -19,6 +22,9 @@ class MapPanel(var map : Map[Location, RoadDirection]) extends JPanel {
   val carColor = Color.BLACK
   var cars : mutable.Map[ActorRef, Location] = null
   var crossToColor = mutable.Map[(Location, ActorRef), Color]()
+  val grassImage = ImageIO.read(new File("src/main/resources/grass.png"))
+  val ballImage = ImageIO.read(new File("src/main/resources/ball.png"))
+  val rockImage = ImageIO.read(new File("src/main/resources/rock.png"))
 
   def refreshCars(_cars: mutable.Map[ActorRef, Location]): Unit = {
     cars = _cars
@@ -51,27 +57,26 @@ class MapPanel(var map : Map[Location, RoadDirection]) extends JPanel {
 
   override def paintComponent(g: Graphics) {
     g.clearRect(0, 0, panelWidth, panelHeight)
-
-    g.setColor(roadColor)
+    g.drawImage(grassImage,0,0,Consts.windowWidth, Consts.windowHeight, null)
+    //g.setColor(roadColor)
     if(map!=null) {
       for ((k, v) <- map) {
-        g.fillRect(k.x * tileSize, k.y * tileSize, tileSize, tileSize)
+        g.drawImage(rockImage, k.x * tileSize, k.y * tileSize, tileSize, tileSize, Color.GRAY, null)
       }
     }
 
     if(crossToColor!=null) {
       for (((k, v),c) <- crossToColor) {
         g.setColor(c)
-        g.fillOval(k.x * tileSize, k.y * tileSize, tileSize, tileSize)
+        g.fillOval(k.x * tileSize + (tileSize - lightSize)/2, k.y * tileSize + (tileSize - lightSize)/2, lightSize, lightSize)
       }
     }
 
     g.setColor(carColor)
     if(cars!=null) {
       for ((k, v) <- cars) {
-        g.fillRect(v.x * tileSize + (tileSize - carSize)/2, v.y * tileSize + (tileSize - carSize)/2, carSize, carSize)
+        g.drawImage(ballImage, v.x * tileSize + (tileSize - carSize)/2, v.y * tileSize + (tileSize - carSize)/2, carSize, carSize, null)
       }
     }
-
   }
 }
