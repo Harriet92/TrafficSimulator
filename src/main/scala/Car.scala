@@ -1,4 +1,4 @@
-import akka.actor.{ActorRef, ActorLogging, Actor}
+import akka.actor.{Cancellable, ActorRef, ActorLogging, Actor}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) extends Actor with ActorLogging {
@@ -7,6 +7,8 @@ class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) e
   var currentFieldIsCrossing: Boolean = false
   var currentDirection: RoadDirection = NoDirection
   val velocity = Consts.carVelocity
+  var cancellableWaitingScheduler: Option[Cancellable] = None
+  var frontCar: Option[ActorRef] = None
 
   override def receive: Receive = {
     case Master.Start() => init()
@@ -33,6 +35,9 @@ class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) e
       //log.info(s"Received new target location: $newLoc")
       changeTarget(newLoc)
 
+    case Car.NoLongerWaitingForFieldMessage(loc) =>
+      handleNoLongerWaiting(loc)
+
     case _ => log.info("Not recognized message!")
   }
 
@@ -41,6 +46,7 @@ class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) e
   }
 
   private def handleFieldInfoMessage(direction: RoadDirection, car: ActorRef, crossing: ActorRef): Unit = {
+    finishWaiting()
     // we just arrived in front of a crossroad
     currentDirection = direction
     if (crossing != null && !currentFieldIsCrossing) {
@@ -51,13 +57,17 @@ class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) e
     else {
       if (crossing == null && currentFieldIsCrossing) currentFieldIsCrossing = false
       val newLoc = direction.applyMovement(currentLoc)
-      if (car != null) car ! Car.WaitingForFieldMessage(newLoc)
+      if (car != null) {
+        frontCar = Some(car)
+        car ! Car.WaitingForFieldMessage(newLoc)
+        setWaitingScheduler()
+      }
       else startMovement(newLoc)
     }
   }
 
-
   def handleFieldFree(loc:Location, refs: List[ActorRef]): Unit = {
+    finishWaiting()
     startMovement(loc)
     waitingCars = refs
   }
@@ -67,6 +77,11 @@ class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) e
       waitingCars = sender :: waitingCars
     else if (loc != currentLoc)
       sender ! Car.FieldFree(loc, Nil)
+  }
+
+  private def handleNoLongerWaiting(loc: Location): Unit = {
+    if(loc == currentLoc)
+      waitingCars = waitingCars.filter(car => car != sender)
   }
 
   private def changeTarget(location: Location): Unit = {
@@ -111,6 +126,25 @@ class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) e
       receiver = self,
       message = Car.MoveFinished)
   }
+
+  private def setWaitingScheduler(): Unit = {
+    log.debug("Setting waiting scheduler")
+    cancellableWaitingScheduler = Some(context.system.scheduler.scheduleOnce(
+      delay = 10 * velocity,
+      receiver = master,
+      message = Car.FieldQueryMessage(currentLoc, calculateDirections().filter(dir => dir != currentDirection))))
+  }
+
+  private def finishWaiting(): Unit = {
+    if(cancellableWaitingScheduler.isDefined) {
+      cancellableWaitingScheduler.get.cancel()
+      cancellableWaitingScheduler = None
+    }
+    if(frontCar.isDefined) {
+      frontCar.get ! Car.NoLongerWaitingForFieldMessage(currentDirection.applyMovement(currentLoc))
+      frontCar = None
+    }
+  }
 }
 
 object Car {
@@ -122,6 +156,7 @@ object Car {
   case class LightQuery(direction: RoadDirection)
   case class MoveFinished()
   case class DestinationReachedMessage()
+  case class NoLongerWaitingForFieldMessage(loc: Location)
 
   val directionPriorities = Map[(Int, Int, Boolean), List[RoadDirection]](
     (1, 1, true) -> List(RightDirection, TopDirection, BottomDirection, LeftDirection),
