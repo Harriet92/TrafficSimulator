@@ -132,7 +132,7 @@ class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) e
     cancellableWaitingScheduler = Some(context.system.scheduler.scheduleOnce(
       delay = Consts.waitingSchedulerSpan,
       receiver = master,
-      message = Car.FieldQueryMessage(currentLoc, calculateDirections().filter(dir => dir != currentDirection))))
+      message = Car.FieldQueryMessage(currentLoc, calculateDirections().filter(dir => dir != currentDirection) :+ currentDirection)))
   }
 
   private def finishWaiting(): Unit = {
