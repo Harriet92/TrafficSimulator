@@ -93,12 +93,16 @@ class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) e
   private def startMovement(newLoc: Location) = {
     log.info(s"Moving to $newLoc")
     master ! Car.FieldEnterMessage(newLoc)
-    if (waitingCars.nonEmpty) {
-      waitingCars.head ! Car.FieldFree(currentLoc, waitingCars.tail)
-      waitingCars = List()
-    }
+    sendFieldFreeMessage()
     currentLoc = newLoc
     setScheduler()
+  }
+
+  private def sendFieldFreeMessage() : Unit = {
+    if (waitingCars.nonEmpty) {
+      waitingCars.head ! Car.FieldFree (currentLoc, waitingCars.tail)
+      waitingCars = List ()
+    }
   }
 
   private def continueMovement() = {
@@ -106,6 +110,7 @@ class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) e
     if(currentLoc == targetLoc) {
       log.info(s"Reached target location: $targetLoc")
       master ! Car.DestinationReachedMessage()
+      sendFieldFreeMessage()
     }
     else
       master ! Car.FieldQueryMessage(currentLoc, calculateDirections())

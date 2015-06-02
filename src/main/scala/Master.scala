@@ -12,6 +12,7 @@ class Master(drawer: ActorRef) extends Actor with ActorLogging {
   drawer ! Master.DrawMap(map, crossings)
   val possibleLocations = map.keys.filter(crossings.get(_).isEmpty).toIndexedSeq
   val cars = createCars(Consts.carsCount)
+  val inactiveCars = mutable.Map[ActorRef, Location]()
   val searchTargetDelay = new FiniteDuration(20, duration.SECONDS)
 
   override def receive: Receive = {
@@ -58,10 +59,9 @@ class Master(drawer: ActorRef) extends Actor with ActorLogging {
   }
 
   def handleDestinationReached(): Unit = {
-    context.system.scheduler.scheduleOnce(
-      delay = searchTargetDelay,
-      receiver = sender(),
-      message = new Master.NextTargetMessage(findRandomPlaceOnRoad()))
+    inactiveCars(sender()) = cars(sender())
+    cars.remove(sender())
+    drawer ! Master.RefreshInactiveCars(inactiveCars)
   }
 
   def findRandomPlaceOnRoad(): Location = {
@@ -100,6 +100,8 @@ object Master {
   case class DrawMap(var map: Map[Location, RoadDirection], var crossings: Map[Location, ActorRef])
 
   case class RefreshCars(var cars: mutable.Map[ActorRef, Location])
+
+  case class RefreshInactiveCars(var cars: mutable.Map[ActorRef, Location])
 
   case class Start()
 

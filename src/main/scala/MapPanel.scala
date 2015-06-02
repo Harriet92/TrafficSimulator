@@ -20,14 +20,21 @@ class MapPanel(var map : Map[Location, RoadDirection]) extends JPanel {
   val crossColor = Color.BLUE
   val grassColor = Color.LIGHT_GRAY
   val carColor = Color.BLACK
+  val inactiveCarColor = Color.YELLOW
   var cars : mutable.Map[ActorRef, Location] = null
+  var inactiveCars : mutable.Map[ActorRef, Location] = null
   var crossToColor = mutable.Map[(Location, ActorRef), Color]()
   val grassImage = ImageIO.read(new File("src/main/resources/grass.png"))
   val ballImage = ImageIO.read(new File("src/main/resources/ball.png"))
+  val ballYellowImage = ImageIO.read(new File("src/main/resources/ball_yellow.png"))
   val rockImage = ImageIO.read(new File("src/main/resources/rock.png"))
 
   def refreshCars(_cars: mutable.Map[ActorRef, Location]): Unit = {
     cars = _cars
+  }
+
+  def refreshInactiveCars(_cars: mutable.Map[ActorRef, Location]): Unit = {
+    inactiveCars = _cars
   }
 
   def crossingsMapInit(crossings: Map[Location, ActorRef]): Unit ={
@@ -68,6 +75,12 @@ class MapPanel(var map : Map[Location, RoadDirection]) extends JPanel {
       for (((k, v),c) <- crossToColor) {
         g.setColor(c)
         g.fillOval(k.x * tileSize + (tileSize - lightSize)/2, k.y * tileSize + (tileSize - lightSize)/2, lightSize, lightSize)
+      }
+    }
+
+    if(inactiveCars!=null) {
+      for ((k, v) <- inactiveCars) {
+        g.drawImage(ballYellowImage, v.x * tileSize + (tileSize - carSize)/2, v.y * tileSize + (tileSize - carSize)/2, carSize, carSize, null)
       }
     }
 

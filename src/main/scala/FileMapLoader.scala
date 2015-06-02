@@ -52,7 +52,6 @@ class FileMapLoader(file: String) extends MapLoader {
       (finalTile, index) <- toDirections(directions).view.zipWithIndex
 
     } yield new Location(column * 2 + index % 2, row * 2 + index / 2) -> (finalTile, crossing)
-    val spawnPooints
     val roads = finalDirections.map(tuple => tuple._1 -> tuple._2._1).toMap
     val crossings = finalDirections.filter(_._2._2 != null).map(tuple => tuple._1 -> tuple._2._2).toMap
     (roads, crossings)

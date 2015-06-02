@@ -20,6 +20,7 @@ class Drawer() extends Actor with ActorLogging {
       sender ! Drawer.InitializationFinished()
 
     case Master.RefreshCars(cars) => mapPanel.refreshCars(cars)
+    case Master.RefreshInactiveCars(cars) => mapPanel.refreshInactiveCars(cars)
     case Drawer.Redraw => mapPanel.repaint()
     case Crossing.TrafficLightsChanged(state) => mapPanel.changeLightsColor(state, sender())
     case _ =>
