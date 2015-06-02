@@ -1,5 +1,6 @@
 import akka.actor.{Props, ActorContext, ActorRef}
 
+import scala.collection.immutable.HashSet
 import scala.io.Source
 
 class FileMapLoader(file: String) extends MapLoader {
@@ -33,23 +34,17 @@ class FileMapLoader(file: String) extends MapLoader {
   )
 
   override def loadMap(context: ActorContext, drawer: ActorRef): (Map[Location, RoadDirection], Map[Location, ActorRef]) = {
-    val tuples = for {
-      (line, row) <- Source.fromFile(file).getLines().toList.view.zipWithIndex
-      (value, column) <- line.view.zipWithIndex
-    } yield (column, row) -> (value != '_')
+    val roadPositions = LoadFromFileToMap('o')
 
-    val map = tuples.toMap
-
-    val ((width, heigth), _) = map.maxBy(x => x._1._1 + x._1._2)
-
+    val (width, heigth) = (Consts.mapColumnsCount / 2, Consts.mapRowsCount / 2)
     val finalDirections = for {
       column <- 0 to width
-      row <- 0 to heigth if map.getOrElse((column, row), false)
+      row <- 0 to heigth if roadPositions.contains((column, row))
 
-      left  = map.getOrElse((column - 1, row), false)
-      right = map.getOrElse((column + 1, row), false)
-      top = map.getOrElse((column, row - 1), false)
-      bottom = map.getOrElse((column, row + 1), false)
+      left  = roadPositions.contains((column - 1, row))
+      right = roadPositions.contains((column + 1, row))
+      top = roadPositions.contains((column, row - 1))
+      bottom = roadPositions.contains((column, row + 1))
 
       directions = new RoadDirection(left, right, top, bottom)
       crossing = createCrossing(directions, column, row, context, drawer)
@@ -61,6 +56,15 @@ class FileMapLoader(file: String) extends MapLoader {
     val roads = finalDirections.map(tuple => tuple._1 -> tuple._2._1).toMap
     val crossings = finalDirections.filter(_._2._2 != null).map(tuple => tuple._1 -> tuple._2._2).toMap
     (roads, crossings)
+  }
+
+  private def LoadFromFileToMap(char: Char): HashSet[(Int, Int)] = {
+    val tuples = for {
+      (line, row) <- Source.fromFile(file).getLines().toList.view.zipWithIndex
+      (value, column) <- line.view.zipWithIndex if value == char
+    } yield (column, row)
+
+    HashSet[(Int, Int)](tuples: _*)
   }
 
   def createCrossing(direction: RoadDirection, x: Int, y: Int, context: ActorContext, drawer: ActorRef) : ActorRef = {
