@@ -9,5 +9,6 @@ object Consts {
   val windowHeight = mapRowsCount * tileSize
   val lightSize = 15
   val carVelocity = 1 seconds
+  val waitingSchedulerSpan = 3 seconds
   val mapFilename = "complex_map.txt"
 }

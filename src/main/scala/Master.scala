@@ -10,7 +10,7 @@ class Master(drawer: ActorRef) extends Actor with ActorLogging {
   private val random = new Random()
   val (map, crossings) = MapLoader.fileLoader(Consts.mapFilename).loadMap(context, drawer)
   drawer ! Master.DrawMap(map, crossings)
-  val possibleLocations = map.keys.filter(crossings.get(_) == None).toIndexedSeq
+  val possibleLocations = map.keys.filter(crossings.get(_).isEmpty).toIndexedSeq
   val cars = createCars(Consts.carsCount)
   val searchTargetDelay = new FiniteDuration(20, duration.SECONDS)
 
