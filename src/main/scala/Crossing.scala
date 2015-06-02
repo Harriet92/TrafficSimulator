@@ -54,7 +54,6 @@ class Crossing(opt: Crossing.Options, drawer: ActorRef) extends Actor with Actor
   }
 
   def setScheduler() {
-    log.debug("Setting scheduler")
     context.system.scheduler.scheduleOnce(
       delay = stateProvider.currentDuration,
       receiver = self,

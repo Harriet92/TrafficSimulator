@@ -1,5 +1,7 @@
 import java.awt.{Color, Dimension}
 import javax.swing.{JFrame, SwingUtilities}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 
 import akka.actor.{ActorRef, ActorLogging, Actor}
 
@@ -12,11 +14,13 @@ class Drawer() extends Actor with ActorLogging {
   }
 
   def receive = {
-    case Master.DrawMap(map, crossings) => {
+    case Master.DrawMap(map, crossings) =>
       drawMap(map, crossings)
+      setScheduler()
       sender ! Drawer.InitializationFinished()
-    }
+
     case Master.RefreshCars(cars) => mapPanel.refreshCars(cars)
+    case Drawer.Redraw => mapPanel.repaint()
     case Crossing.TrafficLightsChanged(state) => mapPanel.changeLightsColor(state, sender())
     case _ =>
   }
@@ -38,8 +42,17 @@ class Drawer() extends Actor with ActorLogging {
       }
     })
   }
+
+  def setScheduler() {
+    context.system.scheduler.schedule(
+      initialDelay = 0 second,
+      interval = 50 millisecond,
+      receiver = self,
+      message = Drawer.Redraw)
+  }
 }
 
 object Drawer{
   case class InitializationFinished()
+  case object Redraw
 }

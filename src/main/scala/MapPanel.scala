@@ -28,7 +28,6 @@ class MapPanel(var map : Map[Location, RoadDirection]) extends JPanel {
 
   def refreshCars(_cars: mutable.Map[ActorRef, Location]): Unit = {
     cars = _cars
-    repaint()
   }
 
   def crossingsMapInit(crossings: Map[Location, ActorRef]): Unit ={
