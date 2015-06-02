@@ -10,7 +10,7 @@ class Master(drawer: ActorRef) extends Actor with ActorLogging {
   private val random = new Random()
   val (map, crossings) = MapLoader.fileLoader(Consts.mapFilename).loadMap(context, drawer)
   drawer ! Master.DrawMap(map, crossings)
-  val possibleLocations = map.keys.filter(crossings.get(_) == None).toIndexedSeq
+  val possibleLocations = map.keys.filter(crossings.get(_).isEmpty).toIndexedSeq
   val cars = createCars(Consts.carsCount)
   val searchTargetDelay = new FiniteDuration(20, duration.SECONDS)
 
@@ -43,11 +43,14 @@ class Master(drawer: ActorRef) extends Actor with ActorLogging {
 
   def handleQuery(loc: Location, directions: List[RoadDirection]): Unit = {
     val bestDir = directions.find(map.getOrElse(loc, NoDirection).contains).getOrElse(NoDirection)
-    val newLoc = bestDir.applyMovement(loc)
-    val car = cars.find(_._2 == newLoc).map(_._1)
-    val crossing = crossings.getOrElse(newLoc, null)
-    if (bestDir != NoDirection)
+    if (bestDir == NoDirection) {
+      sender ! Master.FieldInfoMessage(bestDir, null, null)
+    } else {
+      val newLoc = bestDir.applyMovement(loc)
+      val car = cars.find(_._2 == newLoc).map(_._1)
+      val crossing = crossings.getOrElse(newLoc, null)
       sender ! Master.FieldInfoMessage(bestDir, car.orNull, crossing)
+    }
   }
 
   def handleFieldEnterMessage(location: Location): Unit = {

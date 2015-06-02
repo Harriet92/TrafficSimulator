@@ -6,6 +6,8 @@ class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) e
   var waitingCars: List[ActorRef] = List()
   var currentFieldIsCrossing: Boolean = false
   var currentDirection: RoadDirection = NoDirection
+  var checkedAllDirections: Boolean = false
+  var excludedDirections: RoadDirection = NoDirection
   val velocity = Consts.carVelocity
 
   override def receive: Receive = {
@@ -41,18 +43,32 @@ class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) e
   }
 
   private def handleFieldInfoMessage(direction: RoadDirection, car: ActorRef, crossing: ActorRef): Unit = {
-    // we just arrived in front of a crossroad
-    currentDirection = direction
-    if (crossing != null && !currentFieldIsCrossing) {
-      currentFieldIsCrossing = true
-      crossing ! Car.LightQuery(direction)
-    }
-    // we are on a crossroad and behave like on a road
-    else {
-      if (crossing == null && currentFieldIsCrossing) currentFieldIsCrossing = false
-      val newLoc = direction.applyMovement(currentLoc)
-      if (car != null) car ! Car.WaitingForFieldMessage(newLoc)
-      else startMovement(newLoc)
+    if(direction == NoDirection) {
+      checkedAllDirections = true
+      excludedDirections = NoDirection
+      master ! Car.FieldQueryMessage(currentLoc, calculateDirections())
+    } else {
+      // we just arrived in front of a crossroad
+      currentDirection = direction
+      if (crossing != null && !currentFieldIsCrossing) {
+        currentFieldIsCrossing = true
+        crossing ! Car.LightQuery(direction)
+      }
+      // we are on a crossroad and behave like on a road
+      else {
+        if (crossing == null && currentFieldIsCrossing) currentFieldIsCrossing = false
+        val newLoc = direction.applyMovement(currentLoc)
+        if (car != null) {
+          if(checkedAllDirections) {
+            car ! Car.WaitingForFieldMessage(newLoc)
+            checkedAllDirections = false
+          } else {
+            excludedDirections = excludedDirections + direction
+            master ! Car.FieldQueryMessage(currentLoc, calculateDirections())
+          }
+        }
+        else startMovement(newLoc)
+      }
     }
   }
 
@@ -101,7 +117,7 @@ class Car(var currentLoc: Location, var targetLoc: Location, master: ActorRef) e
     val deltaXbiggerThanDeltay = math.abs(currentLoc.x - targetLoc.x) > math.abs(currentLoc.y -targetLoc.y)
 
     val priorityList = Car.directionPriorities((sigX, sigY, deltaXbiggerThanDeltay))
-    priorityList.filter((rd) => rd != currentDirection.reverse())
+    priorityList.filter((rd) => rd != currentDirection.reverse() && !excludedDirections.contains(rd))
   }
 
   private def setScheduler() {
